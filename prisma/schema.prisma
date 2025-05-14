@@ -18,3 +18,57 @@ model Post {
 
     @@index([name])
 }
+
+// 炉石传说卡牌模型
+model Card {
+    id              String  @id // 卡牌原始ID
+    dbfId           Int     @unique // 卡牌数据库ID
+    name            String  // 卡牌名称
+    cardType        String? // 卡牌类型
+    cardSet         String  // 所属扩展包
+    rarity          String? // 稀有度
+    cardClass       String  // 所属职业
+    cost            Int?    // 法力值消耗
+    attack          Int?    // 攻击力
+    health          Int?    // 生命值
+    text            String? @db.Text // 卡牌描述文本
+    flavor          String? @db.Text // 风味文本
+    artist          String? // 艺术家
+    collectible     Boolean // 是否可收藏
+    imageUrl        String? // 卡牌图片URL
+    mechanics       String? @db.Text // 卡牌机制，JSON 字符串格式
+    race            String? // 主要种族
+    races           String? @db.Text // 所有种族，JSON 字符串格式
+    spellSchool     String? // 法术学派
+    elite           Boolean? // 是否为精英卡牌
+    referencedTags  String? @db.Text // 引用的标签，JSON 字符串格式
+    runeCost        String? @db.Text // 符文消耗，JSON 字符串格式
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([cardSet, cardClass, rarity])
+    @@index([name])
+}
+
+// 卡牌扩展包
+model CardSet {
+    id          String   @id // 扩展包ID
+    name        String   // 扩展包名称
+    year        String?  // 扩展包年份
+    cardCount   Int      // 卡牌数量
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([name])
+}
+
+// 数据更新记录
+model DataUpdateLog {
+    id          Int      @id @default(autoincrement())
+    updateType  String   // 更新类型
+    status      String   // 更新状态
+    message     String?  @db.Text // 更新消息
+    cardCount   Int?     // 更新的卡牌数量
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+}
