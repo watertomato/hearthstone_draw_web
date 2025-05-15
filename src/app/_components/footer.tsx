@@ -3,7 +3,7 @@ export function Footer() {
     <footer className="bg-purple-900/30 py-6 text-center text-white">
       <div className="container mx-auto px-4">
         <p className="text-sm text-gray-300">
-          © {new Date().getFullYear()} 炉石传说辅助工具 | 
+          © {new Date().getFullYear()} 炉石传说现开工具平台 | 
           非官方应用，仅供学习和娱乐使用
         </p>
         <p className="mt-2 text-xs text-gray-400">

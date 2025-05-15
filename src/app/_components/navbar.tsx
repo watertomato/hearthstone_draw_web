@@ -15,7 +15,7 @@ export function Navbar() {
     <nav className="fixed left-0 top-0 z-50 w-full bg-purple-900/80 backdrop-blur-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="text-xl font-bold text-white">
-          炉石传说辅助工具
+          炉石传说现开工具平台
         </Link>
         <div className="flex gap-4">
           <Link
