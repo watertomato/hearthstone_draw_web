@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { z } from "zod";
 
-const cardBatchQuerySchema = z.object({
-  ids: z.string(), // 逗号分隔的卡牌ID列表
+const dbfIdQuerySchema = z.object({
+  ids: z.string(), // 逗号分隔的DBF ID列表
 });
 
-// 批量获取卡牌信息
+// 根据DBF ID批量获取卡牌信息
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     
     // 解析查询参数
-    const result = cardBatchQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+    const result = dbfIdQuerySchema.safeParse(Object.fromEntries(url.searchParams));
     
     if (!result.success) {
       return NextResponse.json(
@@ -23,21 +23,24 @@ export async function GET(req: NextRequest) {
     
     const { ids } = result.data;
     
-    // 分割并过滤ID列表
-    const cardIds = ids.split(',').filter(id => id.trim().length > 0);
+    // 分割并过滤DBF ID列表
+    const dbfIds = ids.split(',')
+      .filter(id => id.trim().length > 0)
+      .map(id => parseInt(id.trim(), 10))
+      .filter(id => !isNaN(id));
     
-    if (cardIds.length === 0) {
+    if (dbfIds.length === 0) {
       return NextResponse.json(
-        { success: false, error: "未提供有效的卡牌ID" },
+        { success: false, error: "未提供有效的DBF ID" },
         { status: 400 }
       );
     }
     
     // 限制一次查询的数量
     const maxBatchSize = 100;
-    if (cardIds.length > maxBatchSize) {
+    if (dbfIds.length > maxBatchSize) {
       return NextResponse.json(
-        { success: false, error: `一次最多查询${maxBatchSize}张卡牌` },
+        { success: false, error: `一次最多查询${maxBatchSize}个DBF ID` },
         { status: 400 }
       );
     }
@@ -46,8 +49,8 @@ export async function GET(req: NextRequest) {
     // @ts-ignore - 忽略因为数据库模型尚未生成而导致的类型错误
     const cards = await db.card.findMany({
       where: {
-        id: {
-          in: cardIds
+        dbfId: {
+          in: dbfIds
         }
       },
       select: {
@@ -65,37 +68,39 @@ export async function GET(req: NextRequest) {
         race: true,
         races: true,
         spellSchool: true,
-        runeCost: true, // 添加符文限制字段
-        dbfId: true,    // 添加dbfId字段用于卡组代码导入/导出
+        runeCost: true,
+        dbfId: true,
       }
     });
     
-    // 创建一个ID到卡牌信息的映射
-    const cardMap = cards.reduce((acc, card) => {
-      acc[card.id] = card;
+    // 创建DBF ID到卡牌信息的映射
+    const dbfIdToCardMap = cards.reduce((acc, card) => {
+      if (card.dbfId !== undefined) {
+        acc[card.dbfId] = card;
+      }
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<number, any>);
     
-    // 检查是否有未找到的卡牌ID
-    const missingCardIds = cardIds.filter(id => !cardMap[id]);
+    // 检查是否有未找到的DBF ID
+    const missingDbfIds = dbfIds.filter(dbfId => !dbfIdToCardMap[dbfId]);
     
     return NextResponse.json({
       success: true,
       data: {
         cards,
-        cardMap,
-        missingCardIds,
+        dbfIdToCardMap,
+        missingDbfIds,
         totalFound: cards.length,
-        totalRequested: cardIds.length
+        totalRequested: dbfIds.length
       }
     });
   } catch (error) {
-    console.error("批量获取卡牌信息失败:", error);
+    console.error("根据DBF ID获取卡牌信息失败:", error);
     
     return NextResponse.json(
       {
         success: false,
-        error: "批量获取卡牌信息失败",
+        error: "根据DBF ID获取卡牌信息失败",
         message: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
