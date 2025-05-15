@@ -432,10 +432,13 @@ export default function DeckPage() {
     const card = getCardById(cardId);
     if (!card || !card.text) return "";
     
+    // 先格式化文本，去掉HTML标签
+    const formattedText = formatCardText(card.text);
     const guestPattern = /(.{2,6})游客/;
-    const match = card.text.match(guestPattern);
+    const match = formattedText.match(guestPattern);
     
-    return match ? match[1]! : "";
+    // 使用非空断言避免类型检查错误，或者提供默认值
+    return match && match[1] ? match[1] : "";
   };
 
   // 处理文件选择
@@ -958,9 +961,42 @@ export default function DeckPage() {
       return;
     }
 
+    // 如果是游客卡牌，检查卡组中是否已经有游客
+    if (isGuestCard(cardId)) {
+      // 查找卡组中的游客卡牌
+      const existingGuestCards = deckCards.filter(id => isGuestCard(id));
+      if (existingGuestCards.length > 0) {
+        const existingGuestType = getGuestType(existingGuestCards[0] as string);
+        setErrorMessage(`卡组中已有${existingGuestType}游客，每个卡组最多只能有一张游客卡牌`);
+        setTimeout(() => setErrorMessage(null), 3000);
+        return;
+      }
+    }
+
+    // 获取卡组中游客对应的职业列表
+    const guestClasses = getDeckGuestClasses();
+    
     // 检查卡牌是否符合当前所选职业
-    if (card.cardClass.toUpperCase() !== selectedClass && card.cardClass.toUpperCase() !== 'NEUTRAL') {
-      setErrorMessage('只能添加所选职业和中立卡牌');
+    const isSelectedClassOrNeutral = card.cardClass.toUpperCase() === selectedClass || card.cardClass.toUpperCase() === 'NEUTRAL';
+    
+    // 检查是否是游客对应职业的圣地历险记卡牌
+    const isVacationCardWithGuestClass = 
+      card.cardSet === 'ISLAND_VACATION' && 
+      guestClasses.includes(card.cardClass.toUpperCase()) &&
+      card.cardClass.toUpperCase() !== selectedClass;
+    
+    if (!isSelectedClassOrNeutral && !isVacationCardWithGuestClass) {
+      // 如果是圣地历险记卡牌但没有对应游客
+      if (card.cardSet === 'ISLAND_VACATION' && card.cardClass.toUpperCase() !== selectedClass) {
+        // 获取需要添加的游客类型
+        const neededGuestType = Object.entries(CLASS_NAMES).find(([className, _]) => 
+          className.toUpperCase() === card.cardClass.toUpperCase()
+        )?.[1] || '';
+        
+        setErrorMessage(`需要先添加${neededGuestType}游客才能使用该卡牌`);
+      } else {
+        setErrorMessage('只能添加所选职业、中立卡牌和游客对应的圣地历险记卡牌');
+      }
       // 3秒后清除错误信息
       setTimeout(() => setErrorMessage(null), 3000);
       return;
@@ -1015,23 +1051,61 @@ export default function DeckPage() {
       // 3秒后清除游客信息
       setTimeout(() => setGuestMessage(null), 3000);
     }
+    // 移除通过游客机制添加卡牌的提示
   };
 
   // 从卡组移除卡牌
   const removeCardFromDeck = (index: number) => {
     // 获取要移除的卡牌ID
     const cardId = deckCards[index];
+    if (!cardId) return;
+    
+    // 检查是否是游客卡牌
+    const isGuest = isGuestCard(cardId);
+    let removedGuestType = "";
+    let removedGuestClass = null;
+    
+    // 如果是游客卡牌，获取其对应的职业
+    if (isGuest) {
+      removedGuestType = getGuestType(cardId);
+      removedGuestClass = getGuestCardClass(removedGuestType);
+    }
     
     // 移除卡牌
     setDeckCards(prev => prev.filter((_, i) => i !== index));
     
-    // 检查是否是游客卡牌并显示提示
-    if (cardId && isGuestCard(cardId)) {
-      const guestType = getGuestType(cardId);
-      setGuestMessage(`已从卡组移除${guestType || ""}游客卡牌`);
+    // 如果是游客卡牌，同时移除该职业的圣地历险记卡牌
+    if (isGuest && removedGuestClass) {
+      // 查找卡组中该职业的圣地历险记卡牌
+      const relatedCards = deckCards.filter(id => {
+        const card = getCardById(id);
+        return card && 
+               card.cardSet === 'ISLAND_VACATION' && 
+               card.cardClass.toUpperCase() === removedGuestClass && 
+               card.cardClass.toUpperCase() !== selectedClass;
+      });
+      
+      if (relatedCards.length > 0) {
+        // 移除相关卡牌
+        setDeckCards(prev => prev.filter(id => {
+          const card = getCardById(id);
+          return !(card && 
+                  card.cardSet === 'ISLAND_VACATION' && 
+                  card.cardClass.toUpperCase() === removedGuestClass && 
+                  card.cardClass.toUpperCase() !== selectedClass);
+        }));
+        
+        // 显示移除提示
+        const className = CLASS_NAMES[removedGuestClass] || removedGuestClass;
+        setGuestMessage(`已移除${removedGuestType}游客及${relatedCards.length}张${className}职业的圣地历险记卡牌`);
+      } else {
+        // 如果没有相关卡牌，只显示移除游客的提示
+        setGuestMessage(`已从卡组移除${removedGuestType}游客卡牌`);
+      }
       // 3秒后清除游客信息
       setTimeout(() => setGuestMessage(null), 3000);
     }
+    // 移除对通过游客机制添加的卡牌的提示
   };
 
   // 清空卡组
@@ -1047,6 +1121,45 @@ export default function DeckPage() {
     }
     
     setDeckCards([]);
+  };
+
+  // 获取游客类型对应的职业
+  const getGuestCardClass = (guestType: string): string | null => {
+    // 根据游客类型返回对应的职业
+    const guestClassMap: Record<string, string> = {
+      '术士': 'WARLOCK',
+      '牧师': 'PRIEST',
+      '萨满祭司': 'SHAMAN',
+      '法师': 'MAGE',
+      '德鲁伊': 'DRUID',
+      '猎人': 'HUNTER',
+      '战士': 'WARRIOR',
+      '圣骑士': 'PALADIN',
+      '潜行者': 'ROGUE',
+      '恶魔猎手': 'DEMONHUNTER',
+      '死亡骑士': 'DEATHKNIGHT'
+    };
+    
+    return guestClassMap[guestType] || null;
+  };
+  
+  // 获取卡组中所有游客卡牌对应的职业
+  const getDeckGuestClasses = (): string[] => {
+    const guestClasses: string[] = [];
+    
+    // 遍历卡组中的所有卡牌
+    for (const cardId of deckCards) {
+      if (isGuestCard(cardId)) {
+        const guestType = getGuestType(cardId);
+        const guestClass = getGuestCardClass(guestType);
+        
+        if (guestClass && !guestClasses.includes(guestClass)) {
+          guestClasses.push(guestClass);
+        }
+      }
+    }
+    
+    return guestClasses;
   };
 
   // 准备显示的卡牌数据
@@ -1084,10 +1197,25 @@ export default function DeckPage() {
   // 获取所有卡牌并应用搜索和职业过滤
   const allCards = prepareCardsForDisplay();
   
-  // 首先应用职业筛选
+  // 获取卡组中游客对应的职业列表
+  const guestClasses = getDeckGuestClasses();
+  
+  // 首先应用职业筛选，支持游客机制
   const classFilteredCards = selectedClass 
-    ? allCards.filter(({ card }) => 
-        card && (card.cardClass.toUpperCase() === selectedClass || card.cardClass.toUpperCase() === 'NEUTRAL'))
+    ? allCards.filter(({ card }) => {
+        if (!card) return false;
+        
+        // 允许添加所选职业和中立卡牌
+        const isSelectedClassOrNeutral = card.cardClass.toUpperCase() === selectedClass || card.cardClass.toUpperCase() === 'NEUTRAL';
+        
+        // 允许添加游客对应职业的圣地历险记卡牌
+        const isVacationCardWithGuestClass = 
+          card.cardSet === 'ISLAND_VACATION' && 
+          guestClasses.includes(card.cardClass.toUpperCase()) &&
+          card.cardClass.toUpperCase() !== selectedClass; // 排除当前职业的卡牌(这些已经在上面判断过了)
+        
+        return isSelectedClassOrNeutral || isVacationCardWithGuestClass;
+      })
     : allCards;
   
   // 然后应用费用筛选
@@ -1503,6 +1631,100 @@ export default function DeckPage() {
       setIsExportingDeckCode(false);
     }
   };
+
+  // 移除游客职业指示区域，仅保留原有内容
+  const deckScrollbarSection = <div className="deck-scrollbar h-[450px] overflow-y-auto rounded-lg bg-white/5 p-4">
+    {deckCards.length > 0 ? (
+      <div className="space-y-1">
+        {/* 按费用排序并分组显示卡组卡牌 */}
+        {Array.from(new Set(deckCards)).sort((a, b) => {
+          const cardA = getCardById(a);
+          const cardB = getCardById(b);
+          if (!cardA || !cardB) return 0;
+          return cardA.cost - cardB.cost || cardA.name.localeCompare(cardB.name);
+        }).map((cardId) => {
+          const card = getCardById(cardId);
+          const cardCount = deckCards.filter(id => id === cardId).length;
+          
+          if (!card) return null;
+          
+          return (
+            <div 
+              key={cardId} 
+              className={`flex items-center justify-between p-1.5 rounded ${getRarityStyle(card.rarity)} hover:bg-white/10 cursor-pointer`}
+              onClick={() => removeCardFromDeck(deckCards.lastIndexOf(cardId))}
+            >
+              <div className="flex items-center">
+                <span className="bg-amber-800 text-white rounded-lg px-1.5 py-0.5 mr-1.5 text-center min-w-[1.25rem] text-xs">
+                  {card.cost}
+                </span>
+                <span className="font-medium text-yellow-200 truncate max-w-[120px]" title={card.name}>
+                  {card.name}
+                </span>
+                {/* 为游客卡牌添加特殊标记 */}
+                {isGuestCard(cardId) && (
+                  <span className="ml-1 text-xs text-purple-300 inline-flex items-center">
+                    <span>👤</span>
+                    <span className="ml-1">{getGuestType(cardId)}</span>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center">
+                {/* 添加符文显示 */}
+                {card.runeCost && (
+                  <div className="flex mr-1.5">
+                    {(() => {
+                      try {
+                        const runeCostObj = JSON.parse(card.runeCost) as Record<string, number>;
+                        return Object.entries(runeCostObj)
+                          .filter(([_, count]) => count > 0)
+                          .map(([type, count]) => {
+                            let icon = '';
+                            let textColor = '';
+                            
+                            switch (type.toLowerCase()) {
+                              case 'blood':
+                                icon = '🩸';
+                                textColor = 'text-red-300';
+                                break;
+                              case 'frost':
+                                icon = '❄️';
+                                textColor = 'text-cyan-300';
+                                break;
+                              case 'unholy':
+                                icon = '☠️';
+                                textColor = 'text-green-300';
+                                break;
+                            }
+                            
+                            return (
+                              <span 
+                                key={type} 
+                                className={`${textColor} text-xs mr-0.5`}
+                                title={`${RUNE_TRANSLATIONS[type.toLowerCase()]}：${count}`}
+                              >
+                                {icon}{count}
+                              </span>
+                            );
+                          });
+                      } catch (error) {
+                        return null;
+                      }
+                    })()}
+                  </div>
+                )}
+                <span className="bg-purple-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold">
+                  {cardCount}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      <p className="text-center text-gray-400">卡组是空的</p>
+    )}
+  </div>;
 
   return (
     <main className="flex min-h-screen flex-col items-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
@@ -1994,7 +2216,19 @@ export default function DeckPage() {
 
             {/* 右侧面板 - 当前卡组 */}
             <div className="rounded-xl bg-white/10 p-6 shadow-xl lg:col-span-1 flex flex-col h-full">
-              <h2 className="mb-4 text-2xl font-bold">当前卡组</h2>
+              <h2 className="mb-4 text-2xl font-bold flex items-center">
+                当前卡组
+                {/* 在标题旁边显示游客信息 */}
+                {deckCards.some(id => isGuestCard(id)) && (
+                  <span className="ml-2 text-sm font-normal bg-purple-800/60 px-2 py-0.5 rounded-full flex items-center">
+                    <span className="mr-1">👤</span>
+                    {(() => {
+                      const guestCard = deckCards.find(id => isGuestCard(id));
+                      return guestCard ? getGuestType(guestCard) : "";
+                    })()}游客
+                  </span>
+                )}
+              </h2>
               <div className="mb-2 flex justify-between">
                 <span>卡牌数量: {deckCards.length}/30</span>
                 {/* 添加符文配置显示在卡牌数量行的右边 */}
@@ -2028,7 +2262,8 @@ export default function DeckPage() {
                 </button>
               </div>
               
-              {/* 移除单独的符文显示区域 */}
+              {/* 移除游客职业指示器区域 */}
+              
               <div className="deck-scrollbar h-[450px] overflow-y-auto rounded-lg bg-white/5 p-4">
                 {deckCards.length > 0 ? (
                   <div className="space-y-1">
@@ -2057,6 +2292,13 @@ export default function DeckPage() {
                             <span className="font-medium text-yellow-200 truncate max-w-[120px]" title={card.name}>
                               {card.name}
                             </span>
+                            {/* 为游客卡牌添加特殊标记 */}
+                            {isGuestCard(cardId) && (
+                              <span className="ml-1 text-xs text-purple-300 inline-flex items-center">
+                                <span>👤</span>
+                                <span className="ml-1">{getGuestType(cardId)}</span>
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center">
                             {/* 添加符文显示 */}
