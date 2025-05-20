@@ -106,7 +106,8 @@ class PackSimulator {
   cards: Map<string, any[]>; // 按扩展包存储的卡牌集合
   cardsByRarity: Map<string, Map<string, any[]>>; // 按扩展包和稀有度存储的卡牌集合
   rarityAnalyzer: PackRarityAnalyzer;
-  pityCounter: Map<string, number>; // 每个扩展包的保底计数器
+  pityCounter: Map<string, number>; // 每个扩展包的传说保底计数器
+  epicPityCounter: Map<string, number>; // 每个扩展包的史诗保底计数器
   openedLegendaries: Map<string, Set<string>>; // 记录已抽到的传说卡
   firstLegendaryObtained: Map<string, boolean>; // 记录每个扩展包是否已经抽到第一张传说
   packsOpened: Map<string, number>; // 记录每个扩展包已抽取的包数（用于前10包保底）
@@ -116,6 +117,7 @@ class PackSimulator {
     this.cardsByRarity = new Map();
     this.rarityAnalyzer = new PackRarityAnalyzer();
     this.pityCounter = new Map();
+    this.epicPityCounter = new Map();
     this.openedLegendaries = new Map();
     this.firstLegendaryObtained = new Map();
     this.packsOpened = new Map();
@@ -159,6 +161,7 @@ class PackSimulator {
     
     // 初始化保底计数器和已开包数
     this.pityCounter.set(setId, 0);
+    this.epicPityCounter.set(setId, 0);
     this.firstLegendaryObtained.set(setId, false);
     this.packsOpened.set(setId, 0);
     this.openedLegendaries.set(setId, new Set());
@@ -176,7 +179,9 @@ class PackSimulator {
     
     // 保底机制处理
     let guaranteedLegendary = false;
+    let guaranteedEpic = false;
     
+    // 橙卡保底逻辑
     // 前10包保底逻辑：如果未抽到传说且当前是第10包，强制出传说
     if (!(this.firstLegendaryObtained.get(setId) || false) && (currentPacksOpened + 1) === 10) {
       guaranteedLegendary = true;
@@ -192,8 +197,19 @@ class PackSimulator {
       }
     }
     
+    // 紫卡保底逻辑
+    // 每10包保底一张史诗
+    const currentEpicPityCounter = (this.epicPityCounter.get(setId) || 0) + 1;
+    this.epicPityCounter.set(setId, currentEpicPityCounter);
+    
+    if (currentEpicPityCounter >= 10 && !guaranteedLegendary) {
+      // 只有在不触发传说保底的情况下才触发史诗保底
+      guaranteedEpic = true;
+      this.epicPityCounter.set(setId, 0);
+    }
+    
     // 确定卡包中5张卡的稀有度
-    const rarities = this.rarityAnalyzer.determinePackRarities(guaranteedLegendary);
+    const rarities = this.determinePackRaritiesWithGuarantees(guaranteedLegendary, guaranteedEpic);
     
     // 抽取卡牌
     const cards = [];
@@ -219,9 +235,34 @@ class PackSimulator {
           this.pityCounter.set(setId, 0);
         }
       }
+      
+      // 如果抽到了史诗卡
+      if (card.rarity === 'EPIC') {
+        // 重置史诗保底计数器
+        this.epicPityCounter.set(setId, 0);
+      }
     }
     
     return cards;
+  }
+  
+  // 确定卡包中5张卡的稀有度（考虑保底机制）
+  determinePackRaritiesWithGuarantees(guaranteedLegendary: boolean, guaranteedEpic: boolean): string[] {
+    // 先正常抽取5张卡的稀有度
+    const rarities = this.rarityAnalyzer.determinePackRarities(guaranteedLegendary);
+    
+    // 如果需要保底史诗且没有传说或史诗，替换一张卡为史诗
+    if (guaranteedEpic && !rarities.includes('LEGENDARY') && !rarities.includes('EPIC')) {
+      // 找到一张普通或稀有卡替换为史诗
+      for (let i = 0; i < rarities.length; i++) {
+        if (rarities[i] === 'COMMON' || rarities[i] === 'RARE') {
+          rarities[i] = 'EPIC';
+          break;
+        }
+      }
+    }
+    
+    return rarities;
   }
   
   // 抽取指定稀有度的卡牌
@@ -295,6 +336,7 @@ class PackSimulator {
   // 重置模拟器状态
   reset() {
     this.pityCounter = new Map();
+    this.epicPityCounter = new Map();
     this.openedLegendaries = new Map();
     this.firstLegendaryObtained = new Map();
     this.packsOpened = new Map();
@@ -302,6 +344,7 @@ class PackSimulator {
     // 重新初始化已加载的扩展包
     for (const setId of this.cards.keys()) {
       this.pityCounter.set(setId, 0);
+      this.epicPityCounter.set(setId, 0);
       this.firstLegendaryObtained.set(setId, false);
       this.packsOpened.set(setId, 0);
       this.openedLegendaries.set(setId, new Set<string>());
