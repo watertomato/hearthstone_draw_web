@@ -9,7 +9,7 @@ export default function Home() {
           <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
             炉石传说 <span className="text-[hsl(280,100%,70%)]">现开工具平台</span>
           </h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 md:gap-8">
             <Link
               className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
               href="/draw"
@@ -26,6 +26,15 @@ export default function Home() {
               <h3 className="text-2xl font-bold">卡组构建 →</h3>
               <div className="text-lg">
                 构建和管理您的炉石传说现开赛卡组。
+              </div>
+            </Link>
+            <Link
+              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
+              href="/contest"
+            >
+              <h3 className="text-2xl font-bold">比赛信息 →</h3>
+              <div className="text-lg">
+                查看最新的炉石传说现开赛事信息。
               </div>
             </Link>
           </div>

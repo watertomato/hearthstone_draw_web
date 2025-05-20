@@ -72,3 +72,34 @@ model DataUpdateLog {
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
 }
+
+// 炉石现开比赛模型
+model Contest {
+    id               String     @id @default(cuid())
+    name             String     // 比赛名称
+    startDateTime    DateTime   // 比赛开始时间
+    endDateTime      DateTime   // 比赛结束时间
+    location         String     // 比赛地点
+    status           String     // 比赛状态：upcoming, ongoing, completed
+    maxParticipants  Int        // 参与人数上限
+    currentParticipants Int     @default(0) // 当前报名人数
+    registrationLink String?    // 报名链接
+    description      String?    @db.Text // 比赛描述
+    packs            Pack[]     // 关联的卡包信息
+    createdAt        DateTime   @default(now())
+    updatedAt        DateTime   @updatedAt
+
+    @@index([status])
+    @@index([startDateTime, endDateTime])
+}
+
+// 卡包模型
+model Pack {
+    id        String   @id @default(cuid())
+    name      String   // 卡包名称
+    count     Int      // 卡包数量
+    contest   Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+    contestId String   // 关联的比赛ID
+
+    @@index([contestId])
+}

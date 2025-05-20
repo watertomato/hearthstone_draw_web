@@ -48,6 +48,16 @@ export function Navbar() {
           >
             卡组构建
           </Link>
+          <Link
+            href="/contest"
+            className={`rounded-lg px-4 py-2 transition-colors ${
+              isActive("/contest")
+                ? "bg-white/20 text-white"
+                : "text-gray-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            比赛信息
+          </Link>
         </div>
       </div>
     </nav>

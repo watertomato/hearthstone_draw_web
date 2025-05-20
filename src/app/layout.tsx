@@ -8,7 +8,7 @@ import { Navbar } from "./_components/navbar";
 import { Footer } from "./_components/footer";
 
 export const metadata: Metadata = {
-  title: "炉石传说辅助工具",
+  title: "炉石传说现开工具平台",
   description: "炉石传说卡牌游戏的抽卡模拟器和卡组构建工具",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
