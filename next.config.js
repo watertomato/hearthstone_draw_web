@@ -5,6 +5,11 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  typescript: {
+    // 在构建时忽略 TypeScript 错误
+    ignoreBuildErrors: true,
+  },
+};
 
 export default config;

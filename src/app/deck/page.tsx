@@ -311,6 +311,8 @@ export default function DeckPage() {
   const [selectedCost, setSelectedCost] = useState<number | string | null>(null);
   // 当前选中的稀有度
   const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
+  // 当前选中的核心/活动筛选
+  const [selectedCoreEvent, setSelectedCoreEvent] = useState<string | null>(null);
   // 当前卡组
   const [deckCards, setDeckCards] = useState<string[]>([]);
   // 错误信息
@@ -472,7 +474,7 @@ export default function DeckPage() {
         // 显示是否添加核心和活动包卡牌的提示
         setShowCoreEventPrompt(true);
       } catch (error) {
-        console.error("导入卡牌数据失败:", error);
+        console.error("导入卡牌JSON失败:", error);
         setImportMessage({
           type: 'error',
           text: `导入失败: ${error instanceof Error ? error.message : '未知错误'}`
@@ -947,6 +949,15 @@ export default function DeckPage() {
     }
   };
 
+  // 处理核心/活动筛选选择
+  const handleCoreEventSelect = (type: string | null) => {
+    if (type === selectedCoreEvent) {
+      setSelectedCoreEvent(null);
+    } else {
+      setSelectedCoreEvent(type);
+    }
+  };
+
   // 添加卡牌到卡组
   const addCardToDeck = (cardId: string) => {
     // 获取卡牌信息
@@ -1239,8 +1250,23 @@ export default function DeckPage() {
         return card.rarity.toUpperCase() === selectedRarity.toUpperCase();
       });
   
+  // 应用核心/活动筛选
+  const coreEventFilteredCards = selectedCoreEvent === null
+    ? rarityFilteredCards
+    : rarityFilteredCards.filter(({ card }) => {
+        if (!card) return false;
+        if (selectedCoreEvent === 'core_event') {
+          // 只显示核心和活动卡牌
+          return card.cardSet === 'CORE' || card.cardSet === 'EVENT';
+        } else if (selectedCoreEvent === 'non_core_event') {
+          // 只显示非核心和非活动卡牌
+          return card.cardSet !== 'CORE' && card.cardSet !== 'EVENT';
+        }
+        return true;
+      });
+  
   // 最后应用搜索过滤
-  const filteredCards = searchCards(rarityFilteredCards, searchTerm);
+  const filteredCards = searchCards(coreEventFilteredCards, searchTerm);
 
   // 处理导入卡组代码
   const handleImportDeckCode = () => {
@@ -1792,10 +1818,11 @@ export default function DeckPage() {
         <div className="w-full max-w-6xl">
           {/* 顶部面板 - 职业选择和过滤器 */}
           <div className="mb-6 rounded-xl bg-white/10 p-6 shadow-xl">
-            <div className="flex flex-col md:flex-row md:gap-8">
-              <div className="mb-6 md:mb-0 md:w-1/2">
-                <h2 className="mb-4 text-2xl font-bold">职业选择</h2>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+              {/* 职业选择 */}
+              <div className="lg:col-span-2">
+                <label className="mb-2 block text-sm">职业选择</label>
+                <div className="grid grid-cols-4 gap-2">
                   <button 
                     className={`rounded-lg p-2 text-sm transition-colors h-9 flex items-center justify-center ${
                       selectedClass === null 
@@ -1919,73 +1946,97 @@ export default function DeckPage() {
                 </div>
               </div>
 
-              <div className="md:w-1/2">
-                <h2 className="mb-4 text-2xl font-bold">卡牌筛选</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-sm">费用</label>
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-9">
-                      {[0, 1, 2, 3, 4, 5, 6, 7, "8+"].map((cost) => (
-                        <button 
-                          key={cost} 
-                          className={`rounded p-2 text-sm transition-colors ${
-                            selectedCost === cost
-                              ? "bg-purple-700 border-2 border-purple-400 font-bold"
-                              : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
-                          }`}
-                          onClick={() => handleCostSelect(cost)}
-                        >
-                          {cost}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="mb-2 block text-sm">稀有度</label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <button 
-                        className={`rounded p-2 text-sm transition-colors ${
-                          selectedRarity === 'COMMON'
-                            ? "bg-purple-700 border-2 border-purple-400 font-bold"
-                            : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
-                        }`}
-                        onClick={() => handleRaritySelect('COMMON')}
-                      >
-                        普通
-                      </button>
-                      <button 
-                        className={`rounded p-2 text-sm transition-colors ${
-                          selectedRarity === 'RARE'
-                            ? "bg-purple-700 border-2 border-purple-400 font-bold"
-                            : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
-                        }`}
-                        onClick={() => handleRaritySelect('RARE')}
-                      >
-                        稀有
-                      </button>
-                      <button 
-                        className={`rounded p-2 text-sm transition-colors ${
-                          selectedRarity === 'EPIC'
-                            ? "bg-purple-700 border-2 border-purple-400 font-bold"
-                            : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
-                        }`}
-                        onClick={() => handleRaritySelect('EPIC')}
-                      >
-                        史诗
-                      </button>
-                      <button 
-                        className={`rounded p-2 text-sm transition-colors ${
-                          selectedRarity === 'LEGENDARY'
-                            ? "bg-purple-700 border-2 border-purple-400 font-bold"
-                            : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
-                        }`}
-                        onClick={() => handleRaritySelect('LEGENDARY')}
-                      >
-                        传说
-                      </button>
-                    </div>
-                  </div>
+              {/* 费用 */}
+              <div>
+                <label className="mb-2 block text-sm">费用</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, "8+"].map((cost) => (
+                    <button 
+                      key={cost} 
+                      className={`rounded p-2 text-sm transition-colors ${
+                        selectedCost === cost
+                          ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                          : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                      }`}
+                      onClick={() => handleCostSelect(cost)}
+                    >
+                      {cost}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* 稀有度 */}
+              <div>
+                <label className="mb-2 block text-sm">稀有度</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    className={`rounded p-2 text-sm transition-colors ${
+                      selectedRarity === 'COMMON'
+                        ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                        : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                    }`}
+                    onClick={() => handleRaritySelect('COMMON')}
+                  >
+                    普通
+                  </button>
+                  <button 
+                    className={`rounded p-2 text-sm transition-colors ${
+                      selectedRarity === 'RARE'
+                        ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                        : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                    }`}
+                    onClick={() => handleRaritySelect('RARE')}
+                  >
+                    稀有
+                  </button>
+                  <button 
+                    className={`rounded p-2 text-sm transition-colors ${
+                      selectedRarity === 'EPIC'
+                        ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                        : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                    }`}
+                    onClick={() => handleRaritySelect('EPIC')}
+                  >
+                    史诗
+                  </button>
+                  <button 
+                    className={`rounded p-2 text-sm transition-colors ${
+                      selectedRarity === 'LEGENDARY'
+                        ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                        : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                    }`}
+                    onClick={() => handleRaritySelect('LEGENDARY')}
+                  >
+                    传说
+                  </button>
+                </div>
+              </div>
+              
+              {/* 是否属于核心/活动 */}
+              <div>
+                <label className="mb-2 block text-sm">是否属于核心/活动</label>
+                <div className="grid grid-cols-1 gap-2">
+                  <button 
+                    className={`rounded p-2 text-sm transition-colors ${
+                      selectedCoreEvent === 'core_event'
+                        ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                        : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                    }`}
+                    onClick={() => handleCoreEventSelect('core_event')}
+                  >
+                    核心/活动
+                  </button>
+                  <button 
+                    className={`rounded p-2 text-sm transition-colors ${
+                      selectedCoreEvent === 'non_core_event'
+                        ? "bg-purple-700 border-2 border-purple-400 font-bold"
+                        : "bg-white/20 hover:bg-white/30 border-2 border-transparent"
+                    }`}
+                    onClick={() => handleCoreEventSelect('non_core_event')}
+                  >
+                    非核心/活动
+                  </button>
                 </div>
               </div>
             </div>
@@ -2098,7 +2149,7 @@ export default function DeckPage() {
                   onClick={triggerFileInput}
                   disabled={isImporting}
                 >
-                  {isImporting ? "导入中..." : "导入卡牌数据"}
+                  {isImporting ? "导入中..." : "导入卡牌 JSON"}
                 </button>
                 <input 
                   type="file" 
@@ -2209,7 +2260,7 @@ export default function DeckPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-center text-gray-400">请导入卡牌数据</p>
+                  <p className="text-center text-gray-400">请导入卡牌 JSON</p>
                 )}
               </div>
             </div>
@@ -2437,4 +2488,4 @@ export default function DeckPage() {
       )}
     </main>
   );
-} 
+}

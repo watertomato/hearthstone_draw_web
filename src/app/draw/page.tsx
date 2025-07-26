@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import * as XLSX from 'xlsx-js-style';
 
 interface CardSet {
   id: string;
@@ -94,14 +95,18 @@ function CardDetailModal({ card, onClose }: { card: Card | null, onClose: () => 
             </div>
             
             <div className="mb-1 text-sm text-gray-300">
-              <span className="font-semibold">职业:</span> {card.cardClass}
+              <span className="font-semibold">职业:</span> {getLocalizedClassName(card.cardClass)}
+            </div>
+            
+            <div className="mb-1 text-sm text-gray-300">
+              <span className="font-semibold">稀有度:</span> {getLocalizedRarityName(card.rarity)}
             </div>
             
             {(card.type) && (
               <div className="mb-1 text-sm text-gray-300">
-                <span className="font-semibold">类型:</span> {card.type}
+                <span className="font-semibold">类型:</span> {getLocalizedCardTypeName(card.type)}
                 {card.races && card.races.length > 0 && 
-                  ` (${card.races.join(', ')})`
+                  ` (${card.races.map(race => getLocalizedRaceName(race)).join(', ')})`
                 }
               </div>
             )}
@@ -114,7 +119,7 @@ function CardDetailModal({ card, onClose }: { card: Card | null, onClose: () => 
             
             {card.spellSchool && (
               <div className="mb-1 text-sm text-gray-300">
-                <span className="font-semibold">法术学派:</span> {card.spellSchool}
+                <span className="font-semibold">法术学派:</span> {getLocalizedSpellSchoolName(card.spellSchool)}
               </div>
             )}
             
@@ -163,6 +168,7 @@ export default function DrawPage() {
   // 扩展包英文名称到中文的映射表
   const SET_NAME_TRANSLATIONS: Record<string, string> = {
     // 最新扩展包
+    'THE_LOST_CITY': '安戈洛龟途',
     'EMERALD_DREAM': '漫游翡翠梦境',
     'SPACE': '深暗领域',
     'ISLAND_VACATION': '胜地历险记',
@@ -212,10 +218,96 @@ export default function DrawPage() {
     'WOG': '低语森林'
   };
   
+  // 职业名称翻译
+  const CLASS_NAMES: Record<string, string> = {
+    'MAGE': '法师',
+    'HUNTER': '猎人',
+    'PALADIN': '圣骑士',
+    'WARRIOR': '战士',
+    'DRUID': '德鲁伊',
+    'WARLOCK': '术士',
+    'SHAMAN': '萨满',
+    'ROGUE': '潜行者',
+    'PRIEST': '牧师',
+    'DEMONHUNTER': '恶魔猎手',
+    'DEATHKNIGHT': '死亡骑士',
+    'NEUTRAL': '中立'
+  };
+
+  // 稀有度翻译
+  const RARITY_TRANSLATIONS: Record<string, string> = {
+    'COMMON': '普通',
+    'RARE': '稀有',
+    'EPIC': '史诗',
+    'LEGENDARY': '传说'
+  };
+
+  // 种族翻译
+  const RACE_TRANSLATIONS: Record<string, string> = {
+    'BEAST': '野兽',
+    'DEMON': '恶魔',
+    'DRAGON': '龙',
+    'ELEMENTAL': '元素',
+    'MECHANICAL': '机械',
+    'MURLOC': '鱼人',
+    'PIRATE': '海盗',
+    'TOTEM': '图腾',
+    'UNDEAD': '亡灵',
+    'NAGA': '娜迦',
+    'DRAENEI': '德莱尼',
+    'QUILBOAR': '野猪人',
+    'ALL': '全部'
+  };
+
+  // 法术类型翻译
+  const SPELL_SCHOOL_TRANSLATIONS: Record<string, string> = {
+    'ARCANE': '奥术',
+    'FIRE': '火焰',
+    'FROST': '冰霜',
+    'HOLY': '神圣',
+    'NATURE': '自然',
+    'SHADOW': '暗影',
+    'FEL': '邪能'
+  };
+
+  // 卡牌类型翻译
+  const CARD_TYPE_TRANSLATIONS: Record<string, string> = {
+    'MINION': '随从',
+    'SPELL': '法术',
+    'WEAPON': '武器',
+    'HERO': '英雄',
+    'LOCATION': '地标'
+  };
+
   // 获取扩展包的本地化名称
   const getLocalizedSetName = (setId: string, originalName: string): string => {
     // 尝试从映射表中获取中文名称，如果没有则使用原始名称
     return SET_NAME_TRANSLATIONS[setId] || originalName;
+  };
+
+  // 获取职业的本地化名称
+  const getLocalizedClassName = (className: string): string => {
+    return CLASS_NAMES[className.toUpperCase()] || className;
+  };
+
+  // 获取稀有度的本地化名称
+  const getLocalizedRarityName = (rarity: string): string => {
+    return RARITY_TRANSLATIONS[rarity.toUpperCase()] || rarity;
+  };
+
+  // 获取种族的本地化名称
+  const getLocalizedRaceName = (race: string): string => {
+    return RACE_TRANSLATIONS[race.toUpperCase()] || race;
+  };
+
+  // 获取法术类型的本地化名称
+  const getLocalizedSpellSchoolName = (spellSchool: string): string => {
+    return SPELL_SCHOOL_TRANSLATIONS[spellSchool.toUpperCase()] || spellSchool;
+  };
+
+  // 获取卡牌类型的本地化名称
+  const getLocalizedCardTypeName = (cardType: string): string => {
+    return CARD_TYPE_TRANSLATIONS[cardType.toUpperCase()] || cardType;
   };
 
   // 按照卡牌数量对扩展包进行分类
@@ -236,11 +328,38 @@ export default function DrawPage() {
       set.cardCount < 100 || set.cardCount > 200
     );
     
+    // 获取SET_NAME_TRANSLATIONS中的键的顺序
+    const setOrder = Object.keys(SET_NAME_TRANSLATIONS);
+    
+    // 按照SET_NAME_TRANSLATIONS字典顺序排序的函数
+    const sortByTranslationOrder = (sets: typeof localizedSets) => {
+      return sets.sort((a, b) => {
+        const indexA = setOrder.indexOf(a.id);
+        const indexB = setOrder.indexOf(b.id);
+        
+        // 如果都在字典中，按字典顺序排序
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB;
+        }
+        
+        // 如果只有一个在字典中，字典中的排在前面
+        if (indexA !== -1 && indexB === -1) {
+          return -1;
+        }
+        if (indexA === -1 && indexB !== -1) {
+          return 1;
+        }
+        
+        // 如果都不在字典中，按原来的卡牌数量降序排序
+        return b.cardCount - a.cardCount;
+      });
+    };
+    
     return [
       {
         id: "game_expansions",
         name: "游戏扩展包",
-        sets: gameExpansions.map(set => ({ 
+        sets: sortByTranslationOrder(gameExpansions).map(set => ({ 
           id: set.id, 
           name: set.localizedName || set.name
         }))
@@ -248,7 +367,7 @@ export default function DrawPage() {
       {
         id: "other",
         name: "其他扩展包",
-        sets: otherSets.map(set => ({ 
+        sets: sortByTranslationOrder(otherSets).map(set => ({ 
           id: set.id, 
           name: set.localizedName || set.name
         }))
@@ -386,7 +505,7 @@ export default function DrawPage() {
     }
   };
 
-  // 导出结果
+  // 导出JSON结果
   const exportResults = () => {
     if (!drawResults) {
       return;
@@ -422,6 +541,190 @@ export default function DrawPage() {
     } catch (err) {
       console.error('导出结果失败:', err);
       alert('导出结果失败: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  // 导出Excel结果
+  const exportExcelResults = async () => {
+    if (!drawResults) {
+      return;
+    }
+    
+    try {
+      // 收集所有卡牌并统计数量
+      const cardMap = new Map<string, { card: Card, count: number }>();
+      
+      drawResults.packs.forEach(pack => {
+        pack.cards.forEach(card => {
+          const key = card.id;
+          if (cardMap.has(key)) {
+            cardMap.get(key)!.count += 1;
+          } else {
+            cardMap.set(key, { card, count: 1 });
+          }
+        });
+      });
+      
+      // 获取核心包和活动包卡牌
+      try {
+        const response = await fetch('/api/cards/core-event');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data?.cards) {
+            result.data.cards.forEach((card: Card) => {
+              // 传说卡添加1张，其他添加2张
+              const count = card.rarity?.toUpperCase() === 'LEGENDARY' ? 1 : 2;
+              const key = card.id;
+              if (cardMap.has(key)) {
+                cardMap.get(key)!.count += count;
+              } else {
+                cardMap.set(key, { card, count });
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('获取核心和活动包卡牌失败:', error);
+      }
+      
+      // 转换为Excel数据格式
+      const excelData = Array.from(cardMap.values()).map(({ card, count }) => {
+        // 获取扩展包中文名
+        const setName = setCategories
+          .flatMap(c => c.sets)
+          .find(s => s.id === card.cardSet)?.name || card.cardSet;
+        
+        // 处理攻击力/生命值
+        let attackHealth = '';
+        const hasAttack = card.attack !== undefined && card.attack !== null;
+        const hasHealth = card.health !== undefined && card.health !== null;
+        
+        if (hasAttack && hasHealth) {
+          attackHealth = `${card.attack}/${card.health}`;
+        } else if (hasAttack && !hasHealth) {
+          attackHealth = `${card.attack}/-`;
+        } else if (!hasAttack && hasHealth) {
+          attackHealth = `-/${card.health}`;
+        }
+        // 如果既没有攻击力也没有生命值，保持空字符串
+        
+        // 处理种族/类型
+        let raceType = '';
+        if (card.races && Array.isArray(card.races) && card.races.length > 0) {
+          raceType = card.races.map(race => getLocalizedRaceName(race)).join(', ');
+        } else if (card.type) {
+          raceType = getLocalizedCardTypeName(card.type);
+        }
+        
+        // 处理卡牌描述（移除HTML标签）
+        const description = card.text ? card.text.replace(/<[^>]*>/g, '').replace(/\$/g, '') : '';
+        
+        return {
+          '卡牌名称': card.name,
+          '职业': getLocalizedClassName(card.cardClass),
+          '扩展包': setName,
+          '稀有度': getLocalizedRarityName(card.rarity),
+          '法力值': card.cost,
+          '卡牌类型': card.type ? getLocalizedCardTypeName(card.type) : '',
+          '攻击力/生命值': attackHealth,
+          '种族/类型': raceType,
+          '数量': count,
+          '卡牌描述': description
+        };
+      });
+      
+      // 按稀有度和名称排序
+      const rarityOrder = { 'LEGENDARY': 1, 'EPIC': 2, 'RARE': 3, 'COMMON': 4 };
+      excelData.sort((a, b) => {
+        const rarityA = rarityOrder[a.稀有度 as keyof typeof rarityOrder] || 5;
+        const rarityB = rarityOrder[b.稀有度 as keyof typeof rarityOrder] || 5;
+        if (rarityA !== rarityB) {
+          return rarityA - rarityB;
+        }
+        return a.卡牌名称.localeCompare(b.卡牌名称);
+      });
+      
+      // 创建工作簿
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      
+      // 设置列宽
+      const colWidths = [
+        { wch: 20 }, // 卡牌名称
+        { wch: 12 }, // 职业
+        { wch: 15 }, // 扩展包
+        { wch: 10 }, // 稀有度
+        { wch: 8 },  // 法力值
+        { wch: 12 }, // 卡牌类型
+        { wch: 12 }, // 攻击力/生命值
+        { wch: 15 }, // 种族/类型
+        { wch: 6 },  // 数量
+        { wch: 40 }  // 卡牌描述
+      ];
+      ws['!cols'] = colWidths;
+      
+      // 添加筛选功能到第一行
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+      
+      // 为表头行添加边框
+      const headerColumns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+      headerColumns.forEach(col => {
+        const cellRef = col + '1';
+        if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+        if (!ws[cellRef].s) ws[cellRef].s = {};
+        ws[cellRef].s.border = {
+          top: { style: 'thin', color: { rgb: '000000' } },
+          bottom: { style: 'thin', color: { rgb: '000000' } },
+          left: { style: 'thin', color: { rgb: '000000' } },
+          right: { style: 'thin', color: { rgb: '000000' } }
+        };
+      });
+      
+      // 根据稀有度设置行背景颜色
+      const rarityColors = {
+        '传说': 'FFF4E6', // 浅橙色
+        '史诗': 'F3E8FF', // 浅紫色
+        '稀有': 'DBEAFE', // 浅蓝色
+        '普通': 'F0F9FF'  // 浅灰蓝色
+      };
+      
+      // 为每一行设置背景颜色
+      excelData.forEach((row, index) => {
+        const rowIndex = index + 2; // Excel行号从1开始，第1行是标题
+        const rarity = row.稀有度 as keyof typeof rarityColors;
+        const color = rarityColors[rarity] || 'FFFFFF'; // 默认白色
+        
+        // 为该行的每个单元格设置背景颜色和边框
+        const columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+        columns.forEach(col => {
+          const cellRef = col + rowIndex;
+          if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+          if (!ws[cellRef].s) ws[cellRef].s = {};
+          ws[cellRef].s.fill = {
+            patternType: 'solid',
+            fgColor: { rgb: color }
+          };
+          ws[cellRef].s.border = {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'thin', color: { rgb: '000000' } },
+            left: { style: 'thin', color: { rgb: '000000' } },
+            right: { style: 'thin', color: { rgb: '000000' } }
+          };
+        });
+      });
+      
+      // 添加工作表到工作簿
+      XLSX.utils.book_append_sheet(wb, ws, '抽卡结果');
+      
+      // 生成文件名
+      const fileName = `hearthstone_cards_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
+      
+      // 导出文件
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('导出Excel失败:', err);
+      alert('导出Excel失败: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -638,7 +941,13 @@ export default function DrawPage() {
                       onClick={exportResults}
                       className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-500"
                     >
-                      导出结果
+                      导出抽卡JSON
+                    </button>
+                    <button 
+                      onClick={exportExcelResults}
+                      className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-500"
+                    >
+                      导出抽卡Excel
                     </button>
                   </div>
                 )}
@@ -824,4 +1133,4 @@ export default function DrawPage() {
       </div>
     </main>
   );
-} 
+}
